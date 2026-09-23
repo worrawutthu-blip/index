@@ -17,7 +17,6 @@
     overflow: hidden; user-select: none; display: flex; flex-direction: column;
   }
 
-  /* Viewport กล้อง */
   #viewport {
     position: relative; flex: 1; background: #000;
     display: flex; align-items: center; justify-content: center; overflow: hidden;
@@ -26,7 +25,6 @@
   #canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
   .mirrored { transform: scaleX(-1); }
 
-  /* Top Bar */
   #topBar {
     position: absolute; top: 0; left: 0; right: 0;
     padding: 12px 16px; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(6px);
@@ -38,9 +36,8 @@
     padding: 6px 12px; border-radius: 8px; font-size: 0.8rem; font-weight: 600; cursor: pointer;
   }
 
-  /* ตัวเลขนับครั้ง */
   #countBox {
-    position: absolute; top: 35%; left: 50%; transform: translate(-50%, -50%);
+    position: absolute; top: 32%; left: 50%; transform: translate(-50%, -50%);
     text-align: center; pointer-events: none; z-index: 10;
   }
   #countNum {
@@ -49,7 +46,6 @@
   }
   #flash { position: absolute; inset: 0; opacity: 0; pointer-events: none; transition: opacity 0.06s; z-index: 15; }
 
-  /* สถานะแนะนำ */
   #guideText {
     position: absolute; top: 68px; left: 50%; transform: translateX(-50%);
     padding: 6px 18px; border-radius: 20px; font-weight: 700; font-size: 0.85rem;
@@ -57,7 +53,6 @@
     white-space: nowrap;
   }
 
-  /* คอนโทรลพาเนลด้านล่าง */
   #panel {
     background: var(--surface); border-top: 1px solid var(--border);
     padding: 14px 18px; display: flex; flex-direction: column; gap: 10px; z-index: 30;
@@ -75,12 +70,9 @@
   .btn-main {
     width: 100%; padding: 14px; font-size: 1.15rem; font-weight: 800;
     border: none; border-radius: 10px; cursor: pointer; background: var(--accent); color: #041325;
-    transition: transform 0.1s;
   }
-  .btn-main:active { transform: scale(0.98); }
   .btn-main.running { background: var(--fail); color: #fff; }
 
-  /* Overlay เต็มจอ */
   .overlay-screen {
     position: absolute; inset: 0; background: rgba(15, 23, 42, 0.95);
     display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -96,21 +88,18 @@
 </head>
 <body>
 
-  <!-- จอโหลด -->
   <div id="loader" class="overlay-screen">
     <div class="spinner"></div>
     <div id="loadText">กำลังเปิดกล้องและเชื่อมต่อระบบตรวจจับ...</div>
   </div>
 
-  <!-- จอสรุปผล -->
   <div id="endScreen" class="overlay-screen hidden">
     <h2>สิ้นสุดการทดสอบ 3 นาที</h2>
     <div id="finalScore" style="font-size:6rem; font-weight:900; color:var(--pass);">0</div>
-    <p style="color:var(--muted);">จำนวนครั้งที่ยกเข่าแตะเส้นไกด์</p>
+    <p style="color:var(--muted);">จำนวนครั้งที่ยกเข่าผ่านเกณฑ์สมบูรณ์</p>
     <button class="btn-main" style="max-width:240px; margin-top:12px;" onclick="resetTest()">ทดสอบคนต่อไป</button>
   </div>
 
-  <!-- มุมมองกล้อง -->
   <div id="viewport">
     <video id="video" playsinline autoplay muted></video>
     <canvas id="canvas"></canvas>
@@ -121,7 +110,7 @@
       <button class="btn-sm" onclick="switchCamera()">🔄 สลับกล้อง</button>
     </div>
 
-    <div id="guideText">ยืนให้เห็นช่วงเอวเพื่อจับระดับ</div>
+    <div id="guideText">ยืนให้เห็นช่วงเอวเพื่อเริ่มล็อกระดับ</div>
 
     <div id="countBox">
       <div id="countNum">0</div>
@@ -129,46 +118,41 @@
     </div>
   </div>
 
-  <!-- คอนโทรลพาเนล -->
   <div id="panel">
     <div class="adjust-row">
-      <span>ปรับเส้นไกด์เป้าหมาย:</span>
+      <span>ปรับระดับเส้นเป้าหมาย:</span>
       <div class="adjust-btns">
-        <button class="btn-adj" onclick="adjustTargetLine(-10)">▲ ขยับขึ้น</button>
-        <button class="btn-adj" onclick="adjustTargetLine(10)">▼ ขยับลง</button>
+        <button class="btn-adj" onclick="adjustTargetLine(-10)">▲ ขึ้น</button>
+        <button class="btn-adj" onclick="adjustTargetLine(10)">▼ ลง</button>
       </div>
     </div>
-    <button id="btnAction" class="btn-main" onclick="toggleRunning()">▶ เริ่มทดสอบ</button>
+    <button id="btnAction" class="btn-main" onclick="toggleRunning()">📌 ล็อกระดับเอว & เริ่มทดสอบ</button>
   </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/tensorflow/4.10.0/tf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@2.1.3/dist/pose-detection.min.js"></script>
 <script>
-// ── พารามิเตอร์ ─────────────────────────────────────────────
-const TOTAL_SEC         = 180;
-const MIN_CONF          = 0.15;
-const THRESHOLD_UP      = 5;    // px เหนือเส้น = เข่าถึงระดับ
-const THRESHOLD_DOWN    = 30;   // px ใต้เส้น  = เข่าลงครบ → นับ
-const COOLDOWN_MS       = 350;
-const SMOOTH_ALPHA      = 0.45; // exponential smoothing
-const HIP_STABLE_FRAMES = 8;   // frame ต่อเนื่องที่ต้องพบสะโพกก่อน auto-lock
+const TOTAL_SEC = 180;
+const MIN_CONF = 0.15;
 
-// ── ตัวแปรสถานะ ────────────────────────────────────────────
+// ระยะห่างระหว่างเส้นเป้าหมายกับเส้นรีเซ็ต (พิกเซล)
+// ป้องกันการสะบัดเข่าอยู่ที่เส้นบน ต้องเอาขาลงต่ำกว่า 70px จึงจะยอมรับรอบใหม่
+const RESET_GAP_PX = 70; 
+
 let detector = null;
 let isRunning = false;
 let startTime = 0;
 let repCount = 0;
 let currentCam = 'user';
 
-let targetLineY       = null;
-let isLineLocked      = false;
-let isKneeUp          = false;
-let lastCountTimestamp = 0;
-let smoothKneeY       = null;
-let smoothHipY        = null;
-let hipStableCount    = 0;
+let targetLineY = null;
+let isLineLocked = false;
 
-// ── อ้างอิง DOM ───────────────────────────────────────────
+// สถานะรอบการก้าว:
+// 'WAITING_PEAK' = รองานยกเข่าแตะเส้นบน
+// 'WAITING_DROP' = แตะเส้นบนแล้ว กำลังรอให้ขาลดต่ำลงมาผ่านเส้นล่าง
+let stepState = 'WAITING_PEAK';
+
 const video = document.getElementById('video');
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
@@ -182,7 +166,6 @@ const countNum = document.getElementById('countNum');
 const guideText = document.getElementById('guideText');
 const flash = document.getElementById('flash');
 
-// ── ระบบเสียง Beep ────────────────────────────────────────
 let audioCtx = null;
 function playBeep() {
   try {
@@ -199,7 +182,6 @@ function playBeep() {
   } catch(e) {}
 }
 
-// ── กล้อง ─────────────────────────────────────────────────
 async function initCamera() {
   if (video.srcObject) video.srcObject.getTracks().forEach(t => t.stop());
   const isPortrait = window.innerHeight > window.innerWidth;
@@ -234,12 +216,9 @@ async function switchCamera() {
 }
 
 function adjustTargetLine(offset) {
-  if (targetLineY !== null) {
-    targetLineY += offset;
-  }
+  if (targetLineY !== null) targetLineY += offset;
 }
 
-// ── Detection Loop ────────────────────────────────────────
 async function detectLoop() {
   let poses = [];
   if (detector) {
@@ -261,110 +240,110 @@ async function detectLoop() {
   requestAnimationFrame(detectLoop);
 }
 
-// ── คำนวณและนับรอบ ─────────────────────────────────────────
 function processPose(kp) {
   const get = name => kp.find(k => k.name === name);
-  const lHip  = get('left_hip'),  rHip  = get('right_hip');
+  const lHip = get('left_hip'), rHip = get('right_hip');
   const lKnee = get('left_knee'), rKnee = get('right_knee');
 
-  const lHipOK  = lHip  && lHip.score  > MIN_CONF;
-  const rHipOK  = rHip  && rHip.score  > MIN_CONF;
-  const lKneeOK = lKnee && lKnee.score > MIN_CONF;
-  const rKneeOK = rKnee && rKnee.score > MIN_CONF;
-
-  // ── AUTO-LOCK สะโพก ──────────────────────────────────────
-  // ไม่ต้องกดปุ่ม calibrate:
-  // พบสะโพก HIP_STABLE_FRAMES frame ต่อเนื่อง → lock อัตโนมัติ
+  // ตรวจระดับเอวแบบสดจนกว่าจะกดล็อก
   if (!isLineLocked) {
-    let rawHipY = null;
-    if (lHipOK && rHipOK) rawHipY = (lHip.y + rHip.y) / 2;
-    else if (lHipOK)       rawHipY = lHip.y;
-    else if (rHipOK)       rawHipY = rHip.y;
+    let currentHipY = null;
+    const lHipOK = lHip && lHip.score > MIN_CONF;
+    const rHipOK = rHip && rHip.score > MIN_CONF;
 
-    if (rawHipY !== null) {
-      // smooth ค่าสะโพกก่อน lock เพื่อไม่ให้กระตุก
-      smoothHipY = smoothHipY === null
-        ? rawHipY
-        : smoothHipY * 0.7 + rawHipY * 0.3;
-      hipStableCount++;
+    if (lHipOK && rHipOK) currentHipY = (lHip.y + rHip.y) / 2;
+    else if (lHipOK) currentHipY = lHip.y;
+    else if (rHipOK) currentHipY = rHip.y;
 
-      guideText.textContent = `ตรวจพบสะโพก… (${hipStableCount}/${HIP_STABLE_FRAMES})`;
-      guideText.style.color = 'var(--warn)';
-
-      // ครบ stable frames → lock เส้นอัตโนมัติ ไม่ต้องกดปุ่ม
-      if (hipStableCount >= HIP_STABLE_FRAMES) {
-        targetLineY  = smoothHipY;
-        isLineLocked = true;
-        guideText.textContent = 'ล็อกระดับแล้ว — กดเริ่มทดสอบ';
-        guideText.style.color = 'var(--pass)';
-      }
-    } else {
-      // ไม่พบสะโพก → reset นับ
-      hipStableCount = 0;
-      smoothHipY = null;
-      guideText.textContent = 'ยืนให้กล้องเห็นช่วงเอว/สะโพก';
-      guideText.style.color = 'var(--muted)';
+    if (currentHipY !== null) {
+      targetLineY = currentHipY;
+      guideText.textContent = 'พบระดับเอวแล้ว กดปุ่มเพื่อเริ่ม';
+      guideText.style.color = 'var(--pass)';
     }
   }
 
-  // แสดงเส้นไกด์
-  if (targetLineY !== null) drawTargetLine(targetLineY);
+  // วาดทั้งเส้นบน (Target) และเส้นล่าง (Reset)
+  if (targetLineY !== null) {
+    drawDualLines(targetLineY, targetLineY + RESET_GAP_PX);
+  }
 
-  // ── หาเข่าที่ยกสูงสุด ───────────────────────────────────
+  // หาพิกัดเข่าข้างที่ยกสูงที่สุด (Y น้อยที่สุด)
   let bestKnee = null;
-  if (lKneeOK && rKneeOK) bestKnee = lKnee.y < rKnee.y ? lKnee : rKnee;
-  else if (lKneeOK)        bestKnee = lKnee;
-  else if (rKneeOK)        bestKnee = rKnee;
+  const lKneeOK = lKnee && lKnee.score > MIN_CONF;
+  const rKneeOK = rKnee && rKnee.score > MIN_CONF;
+
+  if (lKneeOK && rKneeOK) bestKnee = (lKnee.y < rKnee.y) ? lKnee : rKnee;
+  else if (lKneeOK) bestKnee = lKnee;
+  else if (rKneeOK) bestKnee = rKnee;
 
   if (bestKnee && targetLineY !== null) {
-    // Exponential smoothing ลด noise
-    smoothKneeY = smoothKneeY === null
-      ? bestKnee.y
-      : smoothKneeY * (1 - SMOOTH_ALPHA) + bestKnee.y * SMOOTH_ALPHA;
+    const isAboveTarget = bestKnee.y <= targetLineY;
+    const isBelowReset  = bestKnee.y >= (targetLineY + RESET_GAP_PX);
 
-    const isAbove = smoothKneeY <= (targetLineY - THRESHOLD_UP);
-    const isReset = smoothKneeY >= (targetLineY + THRESHOLD_DOWN);
+    drawKneeMarker(bestKnee.x, bestKnee.y, isAboveTarget);
 
-    drawKneeMarker(bestKnee.x, bestKnee.y, isAbove);
-
-    // ── Schmitt Trigger + Falling Edge Count ────────────────
+    // ลอจิก State Machine ป้องกันการนับเบิ้ล
     if (isRunning) {
-      const now = performance.now();
-      if (isAbove && !isKneeUp) isKneeUp = true;
-      if (isKneeUp && isReset && (now - lastCountTimestamp) > COOLDOWN_MS) {
-        isKneeUp           = false;
-        lastCountTimestamp = now;
-        triggerCount();
+      // ขั้นที่ 1: รอจังหวะเข่ายกแตะเส้นบน
+      if (stepState === 'WAITING_PEAK') {
+        if (isAboveTarget) {
+          repCount++;
+          countNum.textContent = repCount;
+          triggerCountFeedback();
+          
+          // สลับสถานะ: ล็อกทันที ไม่ให้นับเพิ่ม ต้องรอให้ขาลดลงไปเส้นล่างก่อน
+          stepState = 'WAITING_DROP';
+          guideText.textContent = '⬇ วางขาลงให้พ้นเส้นฟ้า';
+          guideText.style.color = 'var(--accent)';
+        }
+      } 
+      // ขั้นที่ 2: รอให้ขาลดต่ำลงมาผ่านเส้นล่าง
+      else if (stepState === 'WAITING_DROP') {
+        if (isBelowReset) {
+          // ปลดล็อก พร้อมรับการยกเข่าก้าวถัดไป
+          stepState = 'WAITING_PEAK';
+          guideText.textContent = '⬆ ยกเข่าแตะเส้นส้ม';
+          guideText.style.color = 'var(--text)';
+        }
       }
     }
   }
 }
 
-function triggerCount() {
-  repCount++;
-  countNum.textContent = repCount;
-  
-  // แจ้งเตือนด้วยแสงวาบและเสียง
+function triggerCountFeedback() {
   flash.style.background = 'rgba(34, 197, 94, 0.35)';
   flash.style.opacity = '1';
   setTimeout(() => flash.style.opacity = '0', 60);
   playBeep();
 }
 
-// ── เครื่องมือวาดบน Canvas ────────────────────────────────
-function drawTargetLine(y) {
+function drawDualLines(targetY, resetY) {
   ctx.save();
+  // 1. เส้นบน (Target)
   ctx.strokeStyle = '#f59e0b';
-  ctx.lineWidth = 3.5;
-  ctx.setLineDash([8, 6]);
+  ctx.lineWidth = 3;
   ctx.beginPath();
-  ctx.moveTo(0, y);
-  ctx.lineTo(canvas.width, y);
+  ctx.moveTo(0, targetY);
+  ctx.lineTo(canvas.width, targetY);
   ctx.stroke();
 
   ctx.fillStyle = '#f59e0b';
-  ctx.font = 'bold 14px sans-serif';
-  ctx.fillText(isLineLocked ? '◀ เป้าหมายระดับเข่า (ล็อกแล้ว)' : '◀ ระดับเอวปัจจุบัน', 12, y - 8);
+  ctx.font = 'bold 13px sans-serif';
+  ctx.fillText('◀ 1. เส้นเป้าหมายยกเข่า (เส้นส้ม)', 10, targetY - 6);
+
+  // 2. เส้นล่าง (Reset)
+  ctx.strokeStyle = '#38bdf8';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([6, 6]);
+  ctx.beginPath();
+  ctx.moveTo(0, resetY);
+  ctx.lineTo(canvas.width, resetY);
+  ctx.stroke();
+
+  ctx.fillStyle = '#38bdf8';
+  ctx.font = '12px sans-serif';
+  ctx.fillText('◀ 2. เส้นปล่อยขากลับลงพื้น (เส้นฟ้า)', 10, resetY + 16);
+
   ctx.restore();
 }
 
@@ -380,7 +359,6 @@ function drawKneeMarker(x, y, isPassed) {
   ctx.restore();
 }
 
-// ── นาฬิกาและการควบคุม ─────────────────────────────────────
 function updateTimer() {
   const elapsed = (performance.now() - startTime) / 1000;
   const remain = Math.max(0, TOTAL_SEC - elapsed);
@@ -394,23 +372,20 @@ function updateTimer() {
 
 function toggleRunning() {
   if (!isRunning) {
-    if (!isLineLocked || targetLineY === null) {
-      guideText.textContent = 'รอตรวจพบสะโพกก่อน…';
-      guideText.style.color = 'var(--fail)';
+    if (targetLineY === null) {
+      alert('กรุณายืนให้กล้องตรวจพบสะโพกก่อนเริ่ม');
       return;
     }
-    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    isRunning      = true;
-    repCount       = 0;
-    smoothKneeY    = null;
-    isKneeUp       = false;
-    lastCountTimestamp = 0;
+    isLineLocked = true;
+    isRunning = true;
+    repCount = 0;
     countNum.textContent = '0';
     startTime = performance.now();
+    stepState = 'WAITING_PEAK';
     btnAction.textContent = '⏹ สิ้นสุดการทดสอบ';
     btnAction.classList.add('running');
-    guideText.textContent = 'ยกเข่าให้แตะเส้นสีส้ม';
-    guideText.style.color = 'var(--accent)';
+    guideText.textContent = '⬆ ยกเข่าแตะเส้นส้ม';
+    guideText.style.color = 'var(--text)';
   } else {
     finishTest();
   }
@@ -426,25 +401,17 @@ function finishTest() {
 
 function resetTest() {
   endScreen.classList.add('hidden');
-  // ล้าง state ทั้งหมด → ระบบจะ auto-lock ใหม่ทันทีที่เห็นสะโพก
-  repCount           = 0;
-  smoothKneeY        = null;
-  smoothHipY         = null;
-  hipStableCount     = 0;
-  isKneeUp           = false;
-  isLineLocked       = false;
-  targetLineY        = null;
-  lastCountTimestamp = 0;
-  countNum.textContent  = '0';
+  repCount = 0;
+  countNum.textContent = '0';
   timerDisp.textContent = '3:00';
   timerDisp.style.color = 'var(--warn)';
-  btnAction.textContent = '▶ เริ่มทดสอบ';
-  btnAction.classList.remove('running');
-  guideText.textContent = 'ยืนให้กล้องเห็นช่วงเอว/สะโพก';
-  guideText.style.color = 'var(--muted)';
+  stepState = 'WAITING_PEAK';
+  isLineLocked = false;
+  btnAction.textContent = '📌 ล็อกระดับเอว & เริ่มทดสอบ';
+  guideText.textContent = 'ยืนให้เห็นช่วงเอวเพื่อเริ่มล็อกระดับใหม่';
+  guideText.style.color = 'var(--text)';
 }
 
-// ── เริ่มต้นระบบ ──────────────────────────────────────────
 async function main() {
   try {
     loadText.textContent = 'กำลังเปิดกล้อง...';
