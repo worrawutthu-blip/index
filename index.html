@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<title>ทดสอบยกเข่า 3 นาที</title>
+<title>ระบบทดสอบยกเข่า 3 นาที</title>
 <style>
   :root {
     --bg: #0f172a; --surface: #1e293b; --border: #334155;
@@ -17,7 +17,7 @@
     overflow: hidden; user-select: none; display: flex; flex-direction: column;
   }
 
-  /* ส่วนแสดงภาพกล้อง */
+  /* ส่วนแสดงผลกล้อง */
   #viewport {
     position: relative; flex: 1; background: #000;
     display: flex; align-items: center; justify-content: center; overflow: hidden;
@@ -30,7 +30,7 @@
   }
   .mirrored { transform: scaleX(-1); }
 
-  /* แถบด้านบน */
+  /* แถบควบคุมด้านบน */
   #topBar {
     position: absolute; top: 0; left: 0; right: 0;
     padding: 10px 16px; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(6px);
@@ -42,9 +42,9 @@
     padding: 6px 12px; border-radius: 8px; font-size: 0.8rem; font-weight: 600; cursor: pointer;
   }
 
-  /* ตัวเลขนับครั้ง */
+  /* ตัวเลขนับจำนวนครั้ง */
   #countBox {
-    position: absolute; top: 28%; left: 50%; transform: translate(-50%, -50%);
+    position: absolute; top: 26%; left: 50%; transform: translate(-50%, -50%);
     text-align: center; pointer-events: none; z-index: 10;
   }
   #countNum {
@@ -54,8 +54,8 @@
   #flash { position: absolute; inset: 0; opacity: 0; pointer-events: none; transition: opacity 0.06s; z-index: 15; }
 
   #guideText {
-    position: absolute; top: 64px; left: 50%; transform: translateX(-50%);
-    padding: 6px 16px; border-radius: 20px; font-weight: 700; font-size: 0.85rem;
+    position: absolute; top: 62px; left: 50%; transform: translateX(-50%);
+    padding: 5px 16px; border-radius: 20px; font-weight: 700; font-size: 0.85rem;
     background: rgba(15, 23, 42, 0.88); border: 1px solid var(--border); z-index: 20;
     white-space: nowrap; pointer-events: none;
   }
@@ -63,15 +63,27 @@
   /* แผงควบคุมด้านล่าง */
   #panel {
     background: var(--surface); border-top: 1px solid var(--border);
-    padding: 12px 18px; display: flex; flex-direction: column; gap: 8px; z-index: 30;
+    padding: 12px 18px; display: flex; flex-direction: column; gap: 10px; z-index: 30;
   }
+  .adjust-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    font-size: 0.85rem; color: var(--muted);
+  }
+  .adjust-btns { display: flex; gap: 8px; }
+  .btn-adj {
+    background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    padding: 6px 14px; border-radius: 6px; font-size: 0.9rem; font-weight: 700; cursor: pointer;
+  }
+  .btn-adj:active { background: var(--border); }
+
   .btn-main {
     width: 100%; padding: 14px; font-size: 1.15rem; font-weight: 800;
     border: none; border-radius: 10px; cursor: pointer; background: var(--accent); color: #041325;
   }
+  .btn-main:active { transform: scale(0.98); }
   .btn-main.running { background: var(--fail); color: #fff; }
 
-  /* Overlay โหลดและจบการทดสอบ */
+  /* หน้าจอโหลดและจบการทดสอบ */
   .overlay-screen {
     position: absolute; inset: 0; background: rgba(15, 23, 42, 0.95);
     display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -89,7 +101,7 @@
 
   <div id="loader" class="overlay-screen">
     <div class="spinner"></div>
-    <div id="loadText">กำลังเปิดกล้องและเชื่อมต่อระบบตรวจจับ...</div>
+    <div id="loadText">กำลังเปิดกล้องและเชื่อมต่อระบบ...</div>
   </div>
 
   <div id="endScreen" class="overlay-screen hidden">
@@ -106,13 +118,10 @@
 
     <div id="topBar">
       <div id="timer">3:00</div>
-      <div style="display:flex; gap:8px;">
-        <button class="btn-sm" onclick="autoSetWaist()">🎯 ดึงระดับเอว</button>
-        <button class="btn-sm" onclick="switchCamera()">🔄 สลับกล้อง</button>
-      </div>
+      <button class="btn-sm" onclick="switchCamera()">🔄 สลับกล้อง</button>
     </div>
 
-    <div id="guideText">ใช้นิ้วแตะหรือลากเส้นสีส้มไปไว้ที่ระดับเอว</div>
+    <div id="guideText">ลากเส้นส้ม หรือกดปุ่ม ▲▼ เพื่อตั้งระดับเอว</div>
 
     <div id="countBox">
       <div id="countNum">0</div>
@@ -121,6 +130,13 @@
   </div>
 
   <div id="panel">
+    <div class="adjust-row">
+      <span>ปรับเส้นระดับเอว:</span>
+      <div class="adjust-btns">
+        <button class="btn-adj" onclick="microAdjust(-0.015)">▲ ขึ้น</button>
+        <button class="btn-adj" onclick="microAdjust(0.015)">▼ ลง</button>
+      </div>
+    </div>
     <button id="btnAction" class="btn-main" onclick="toggleRunning()">▶ เริ่มการทดสอบ</button>
   </div>
 
@@ -129,7 +145,6 @@
 <script>
 const TOTAL_SEC = 180;
 const MIN_CONF = 0.15;
-const RESET_GAP_PX = 65; // ระยะห่างระหว่างเส้นเป้าหมายกับเส้นรีเซ็ต ป้องกันการสั่นสะบัดนับซ้ำ
 
 let detector = null;
 let isRunning = false;
@@ -137,10 +152,12 @@ let startTime = 0;
 let repCount = 0;
 let currentCam = 'user';
 
-// ตำแหน่งเส้นเป้าหมาย (เริ่มต้นไว้ที่ 55% ของความสูงภาพ)
-let targetLineY = null;
+// ตำแหน่งเส้นเป้าหมายเป็นอัตราส่วนความสูงหน้าจอ (0.0 = บนสุด, 1.0 = ล่างสุด)
+// ค่าเริ่มต้น 0.52 (ประมาณกึ่งกลางจอ)
+let targetRatio = 0.52; 
+const RESET_OFFSET_RATIO = 0.08; // เส้นปล่อยขาจะอยู่ต่ำกว่าเส้นเป้าหมาย 8% ของความสูงจอ
+
 let stepState = 'WAITING_PEAK';
-let detectedHipY = null;
 
 const video = document.getElementById('video');
 const canvas = document.getElementById('canvas');
@@ -188,11 +205,6 @@ async function initCamera() {
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
 
-  // กำหนดตำแหน่งเริ่มต้นที่กึ่งกลางค่อนล่างของจอ
-  if (targetLineY === null) {
-    targetLineY = Math.round(canvas.height * 0.55);
-  }
-
   if (currentCam === 'user') {
     video.classList.add('mirrored');
     canvas.classList.add('mirrored');
@@ -207,46 +219,37 @@ async function switchCamera() {
   await initCamera();
 }
 
-// ── ระบบใช้นิ้วแตะหรือลากเส้นไกด์ (Touch & Drag) ──────────
-function handlePointer(e) {
+// ── ระบบใช้นิ้วลากปรับระดับบนหน้าจอ ──────────────────────────
+function setRatioFromClientY(clientY) {
   const rect = canvas.getBoundingClientRect();
-  const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-  
-  // แปลงพิกัดการสัมผัสบนจอให้ตรงกับความละเอียดของภาพวิดีโอ 1:1
-  const scaleY = canvas.height / rect.height;
-  const newY = (clientY - rect.top) * scaleY;
-
-  if (newY > 50 && newY < canvas.height - 100) {
-    targetLineY = Math.round(newY);
-    guideText.textContent = 'ปรับระดับแล้ว พร้อมทดสอบ';
-    guideText.style.color = 'var(--pass)';
-  }
+  const clampedY = Math.max(rect.top + 40, Math.min(clientY, rect.bottom - 80));
+  targetRatio = (clampedY - rect.top) / rect.height;
 }
 
-canvas.addEventListener('touchstart', handlePointer, { passive: false });
-canvas.addEventListener('touchmove', handlePointer, { passive: false });
+canvas.addEventListener('touchstart', (e) => {
+  setRatioFromClientY(e.touches[0].clientY);
+}, { passive: false });
+
+canvas.addEventListener('touchmove', (e) => {
+  setRatioFromClientY(e.touches[0].clientY);
+}, { passive: false });
+
 canvas.addEventListener('mousedown', (e) => {
-  handlePointer(e);
-  const onMouseMove = (ev) => handlePointer(ev);
-  const onMouseUp = () => {
-    window.removeEventListener('mousemove', onMouseMove);
-    window.removeEventListener('mouseup', onMouseUp);
+  setRatioFromClientY(e.clientY);
+  const onMove = (ev) => setRatioFromClientY(ev.clientY);
+  const onUp = () => {
+    window.removeEventListener('mousemove', onMove);
+    window.removeEventListener('mouseup', onUp);
   };
-  window.addEventListener('mousemove', onMouseMove);
-  window.addEventListener('mouseup', onMouseUp);
+  window.addEventListener('mousemove', onMove);
+  window.addEventListener('mouseup', onUp);
 });
 
-function autoSetWaist() {
-  if (detectedHipY !== null) {
-    targetLineY = detectedHipY;
-    guideText.textContent = 'ดึงระดับเอวจากกล้องสำเร็จ';
-    guideText.style.color = 'var(--pass)';
-  } else {
-    alert('กล้องยังไม่พบสะโพก ใช้นิ้วแตะลากเส้นสีส้มแทนได้เลย');
-  }
+function microAdjust(delta) {
+  targetRatio = Math.max(0.15, Math.min(0.85, targetRatio + delta));
 }
 
-// ── ลูปประมวลผล ──────────────────────────────────────────
+// ── Detection Loop (ตรวจจับเฉพาะหัวเข่า) ────────────────────
 async function detectLoop() {
   let poses = [];
   if (detector) {
@@ -255,67 +258,56 @@ async function detectLoop() {
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+  const targetY = canvas.height * targetRatio;
+  const resetY  = canvas.height * (targetRatio + RESET_OFFSET_RATIO);
+
+  // วาดเส้นไกด์เป้าหมายและเส้นปล่อยขา
+  drawDualLines(targetY, resetY);
+
   if (poses.length > 0 && poses[0].score > 0.12) {
-    processPose(poses[0].keypoints);
-  }
+    const kp = poses[0].keypoints;
+    const lKnee = kp.find(k => k.name === 'left_knee');
+    const rKnee = kp.find(k => k.name === 'right_knee');
 
-  // แสดงเส้นเป้าหมาย (ส้ม) และเส้นรีเซ็ต (ฟ้า) เสมอ
-  if (targetLineY !== null) {
-    drawDualLines(targetLineY, targetLineY + RESET_GAP_PX);
-  }
+    const lOK = lKnee && lKnee.score > MIN_CONF;
+    const rOK = rKnee && rKnee.score > MIN_CONF;
 
-  if (isRunning) updateTimer();
-  requestAnimationFrame(detectLoop);
-}
+    // หาเข่าข้างที่ยกสูงที่สุดในเฟรม (Y ต่ำที่สุด)
+    let bestKnee = null;
+    if (lOK && rOK) bestKnee = (lKnee.y < rKnee.y) ? lKnee : rKnee;
+    else if (lOK) bestKnee = lKnee;
+    else if (rOK) bestKnee = rKnee;
 
-function processPose(kp) {
-  const get = name => kp.find(k => k.name === name);
-  const lHip = get('left_hip'), rHip = get('right_hip');
-  const lKnee = get('left_knee'), rKnee = get('right_knee');
+    if (bestKnee) {
+      const isAboveTarget = bestKnee.y <= targetY;
+      const isBelowReset  = bestKnee.y >= resetY;
 
-  // บันทึกตำแหน่งสะโพกเผื่อผู้ใช้กดปุ่ม Auto
-  const lHipOK = lHip && lHip.score > MIN_CONF;
-  const rHipOK = rHip && rHip.score > MIN_CONF;
-  if (lHipOK && rHipOK) detectedHipY = Math.round((lHip.y + rHip.y) / 2);
-  else if (lHipOK) detectedHipY = Math.round(lHip.y);
-  else if (rHipOK) detectedHipY = Math.round(rHip.y);
+      drawKneeMarker(bestKnee.x, bestKnee.y, isAboveTarget);
 
-  // หาพิกัดหัวเข่าข้างที่ยกสูงที่สุด (Y น้อยที่สุด)
-  let bestKnee = null;
-  const lKneeOK = lKnee && lKnee.score > MIN_CONF;
-  const rKneeOK = rKnee && rKnee.score > MIN_CONF;
-
-  if (lKneeOK && rKneeOK) bestKnee = (lKnee.y < rKnee.y) ? lKnee : rKnee;
-  else if (lKneeOK) bestKnee = lKnee;
-  else if (rKneeOK) bestKnee = rKnee;
-
-  if (bestKnee && targetLineY !== null) {
-    const isAboveTarget = bestKnee.y <= targetLineY;
-    const isBelowReset  = bestKnee.y >= (targetLineY + RESET_GAP_PX);
-
-    drawKneeMarker(bestKnee.x, bestKnee.y, isAboveTarget);
-
-    // ลอจิกการนับ: สองเกณฑ์ป้องกันการนับเบิ้ล
-    if (isRunning) {
-      if (stepState === 'WAITING_PEAK') {
-        if (isAboveTarget) {
-          repCount++;
-          countNum.textContent = repCount;
-          triggerCountFeedback();
-          
-          stepState = 'WAITING_DROP';
-          guideText.textContent = '⬇ วางขาลงให้พ้นเส้นฟ้า';
-          guideText.style.color = 'var(--accent)';
-        }
-      } else if (stepState === 'WAITING_DROP') {
-        if (isBelowReset) {
-          stepState = 'WAITING_PEAK';
-          guideText.textContent = '⬆ ยกเข่าแตะเส้นส้ม';
-          guideText.style.color = 'var(--text)';
+      // State Machine การนับรอบ
+      if (isRunning) {
+        if (stepState === 'WAITING_PEAK') {
+          if (isAboveTarget) {
+            repCount++;
+            countNum.textContent = repCount;
+            triggerCountFeedback();
+            stepState = 'WAITING_DROP';
+            guideText.textContent = '⬇ วางขาลงให้พ้นเส้นฟ้า';
+            guideText.style.color = 'var(--accent)';
+          }
+        } else if (stepState === 'WAITING_DROP') {
+          if (isBelowReset) {
+            stepState = 'WAITING_PEAK';
+            guideText.textContent = '⬆ ยกเข่าแตะเส้นส้ม';
+            guideText.style.color = 'var(--text)';
+          }
         }
       }
     }
   }
+
+  if (isRunning) updateTimer();
+  requestAnimationFrame(detectLoop);
 }
 
 function triggerCountFeedback() {
@@ -327,7 +319,7 @@ function triggerCountFeedback() {
 
 function drawDualLines(targetY, resetY) {
   ctx.save();
-  // 1. เส้นเป้าหมาย (ส้ม) - ลากปรับได้
+  // 1. เส้นเป้าหมาย (ส้ม)
   ctx.strokeStyle = '#f59e0b';
   ctx.lineWidth = 4;
   ctx.beginPath();
@@ -337,7 +329,7 @@ function drawDualLines(targetY, resetY) {
 
   ctx.fillStyle = '#f59e0b';
   ctx.font = 'bold 15px sans-serif';
-  ctx.fillText('◀ เส้นเป้าหมาย (แตะหน้าจอเพื่อเลื่อน)', 12, targetY - 8);
+  ctx.fillText('◀ เส้นระดับเอว (ลากปรับระดับได้)', 12, targetY - 8);
 
   // 2. เส้นปล่อยขากลับ (ฟ้า)
   ctx.strokeStyle = '#38bdf8';
@@ -350,7 +342,7 @@ function drawDualLines(targetY, resetY) {
 
   ctx.fillStyle = '#38bdf8';
   ctx.font = '13px sans-serif';
-  ctx.fillText('◀ เส้นปล่อยขากลับ', 12, resetY + 18);
+  ctx.fillText('◀ เส้นปล่อยขากลับลงพื้น', 12, resetY + 18);
 
   ctx.restore();
 }
@@ -410,7 +402,7 @@ function resetTest() {
   timerDisp.style.color = 'var(--warn)';
   stepState = 'WAITING_PEAK';
   btnAction.textContent = '▶ เริ่มการทดสอบ';
-  guideText.textContent = 'แตะหรือลากเส้นสีส้มเพื่อปรับระดับ';
+  guideText.textContent = 'ลากเส้นส้ม หรือกดปุ่ม ▲▼ เพื่อตั้งระดับเอว';
   guideText.style.color = 'var(--text)';
 }
 
@@ -418,7 +410,7 @@ async function main() {
   try {
     loadText.textContent = 'กำลังเปิดกล้อง...';
     await initCamera();
-    loadText.textContent = 'กำลังโหลดระบบตรวจจับ...';
+    loadText.textContent = 'กำลังโหลด AI ตรวจจับข้อเข่า...';
     detector = await poseDetection.createDetector(
       poseDetection.SupportedModels.MoveNet,
       { modelType: poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING }
