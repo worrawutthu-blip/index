@@ -138,21 +138,20 @@
         <button class="btn-adj" onclick="adjustTargetLine(10)">▼ ขยับลง</button>
       </div>
     </div>
-    <button id="btnAction" class="btn-main" onclick="toggleRunning()">📌 ล็อกระดับเอว & เริ่มทดสอบ</button>
+    <button id="btnAction" class="btn-main" onclick="toggleRunning()">▶ เริ่มทดสอบ</button>
   </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/tensorflow/4.10.0/tf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@2.1.3/dist/pose-detection.min.js"></script>
 <script>
 // ── พารามิเตอร์ ─────────────────────────────────────────────
-const TOTAL_SEC = 180;
-const MIN_CONF = 0.15;
-// Schmitt Trigger: เข่าต้องสูงกว่าเส้น THRESHOLD_UP px ถึงจะ "นับว่าขึ้น"
-// และต้องลงต่ำกว่าเส้น THRESHOLD_DOWN px ถึงจะ "reset พร้อมนับรอบถัดไป"
-const THRESHOLD_UP   = 5;    // px เหนือเส้น = ผ่าน (เข่า.y <= lineY - 5)
-const THRESHOLD_DOWN = 30;   // px ใต้เส้น = reset (เข่า.y >= lineY + 30)
-const COOLDOWN_MS = 350;     // ป้องกันการนับซ้ำเร็วเกิน (ms)
-const SMOOTH_ALPHA = 0.45;   // Exponential smoothing (0=หน่วงมาก, 1=ไม่หน่วง)
+const TOTAL_SEC         = 180;
+const MIN_CONF          = 0.15;
+const THRESHOLD_UP      = 5;    // px เหนือเส้น = เข่าถึงระดับ
+const THRESHOLD_DOWN    = 30;   // px ใต้เส้น  = เข่าลงครบ → นับ
+const COOLDOWN_MS       = 350;
+const SMOOTH_ALPHA      = 0.45; // exponential smoothing
+const HIP_STABLE_FRAMES = 8;   // frame ต่อเนื่องที่ต้องพบสะโพกก่อน auto-lock
 
 // ── ตัวแปรสถานะ ────────────────────────────────────────────
 let detector = null;
@@ -161,11 +160,13 @@ let startTime = 0;
 let repCount = 0;
 let currentCam = 'user';
 
-let targetLineY = null;
-let isLineLocked = false;
-let isKneeUp = false;
+let targetLineY       = null;
+let isLineLocked      = false;
+let isKneeUp          = false;
 let lastCountTimestamp = 0;
-let smoothKneeY = null;      // ค่า Y เข่าแบบ smoothed ลด noise
+let smoothKneeY       = null;
+let smoothHipY        = null;
+let hipStableCount    = 0;
 
 // ── อ้างอิง DOM ───────────────────────────────────────────
 const video = document.getElementById('video');
@@ -263,65 +264,75 @@ async function detectLoop() {
 // ── คำนวณและนับรอบ ─────────────────────────────────────────
 function processPose(kp) {
   const get = name => kp.find(k => k.name === name);
-  const lHip = get('left_hip'), rHip = get('right_hip');
+  const lHip  = get('left_hip'),  rHip  = get('right_hip');
   const lKnee = get('left_knee'), rKnee = get('right_knee');
 
-  // ตรวจหาตำแหน่งเอว/สะโพกแบบ Real-time ถ้ายังไม่ได้ล็อกเส้น
-  if (!isLineLocked) {
-    let currentHipY = null;
-    const lHipOK = lHip && lHip.score > MIN_CONF;
-    const rHipOK = rHip && rHip.score > MIN_CONF;
-
-    if (lHipOK && rHipOK) currentHipY = (lHip.y + rHip.y) / 2;
-    else if (lHipOK) currentHipY = lHip.y;
-    else if (rHipOK) currentHipY = rHip.y;
-
-    if (currentHipY !== null) {
-      targetLineY = currentHipY;
-      guideText.textContent = 'พบระดับเอวแล้ว กดปุ่มด้านล่างเพื่อเริ่ม';
-      guideText.style.color = 'var(--pass)';
-    }
-  }
-
-  // หากมีเส้นเป้าหมายแล้ว ให้แสดงเส้นไกด์
-  if (targetLineY !== null) {
-    drawTargetLine(targetLineY);
-  }
-
-  // หาพิกัดของเข่าข้างที่ยกสูงที่สุดในเฟรม (แกน Y ค่ายิ่งน้อยยิ่งสูง)
-  let bestKnee = null;
+  const lHipOK  = lHip  && lHip.score  > MIN_CONF;
+  const rHipOK  = rHip  && rHip.score  > MIN_CONF;
   const lKneeOK = lKnee && lKnee.score > MIN_CONF;
   const rKneeOK = rKnee && rKnee.score > MIN_CONF;
 
-  if (lKneeOK && rKneeOK) bestKnee = (lKnee.y < rKnee.y) ? lKnee : rKnee;
-  else if (lKneeOK) bestKnee = lKnee;
-  else if (rKneeOK) bestKnee = rKnee;
+  // ── AUTO-LOCK สะโพก ──────────────────────────────────────
+  // ไม่ต้องกดปุ่ม calibrate:
+  // พบสะโพก HIP_STABLE_FRAMES frame ต่อเนื่อง → lock อัตโนมัติ
+  if (!isLineLocked) {
+    let rawHipY = null;
+    if (lHipOK && rHipOK) rawHipY = (lHip.y + rHip.y) / 2;
+    else if (lHipOK)       rawHipY = lHip.y;
+    else if (rHipOK)       rawHipY = rHip.y;
+
+    if (rawHipY !== null) {
+      // smooth ค่าสะโพกก่อน lock เพื่อไม่ให้กระตุก
+      smoothHipY = smoothHipY === null
+        ? rawHipY
+        : smoothHipY * 0.7 + rawHipY * 0.3;
+      hipStableCount++;
+
+      guideText.textContent = `ตรวจพบสะโพก… (${hipStableCount}/${HIP_STABLE_FRAMES})`;
+      guideText.style.color = 'var(--warn)';
+
+      // ครบ stable frames → lock เส้นอัตโนมัติ ไม่ต้องกดปุ่ม
+      if (hipStableCount >= HIP_STABLE_FRAMES) {
+        targetLineY  = smoothHipY;
+        isLineLocked = true;
+        guideText.textContent = 'ล็อกระดับแล้ว — กดเริ่มทดสอบ';
+        guideText.style.color = 'var(--pass)';
+      }
+    } else {
+      // ไม่พบสะโพก → reset นับ
+      hipStableCount = 0;
+      smoothHipY = null;
+      guideText.textContent = 'ยืนให้กล้องเห็นช่วงเอว/สะโพก';
+      guideText.style.color = 'var(--muted)';
+    }
+  }
+
+  // แสดงเส้นไกด์
+  if (targetLineY !== null) drawTargetLine(targetLineY);
+
+  // ── หาเข่าที่ยกสูงสุด ───────────────────────────────────
+  let bestKnee = null;
+  if (lKneeOK && rKneeOK) bestKnee = lKnee.y < rKnee.y ? lKnee : rKnee;
+  else if (lKneeOK)        bestKnee = lKnee;
+  else if (rKneeOK)        bestKnee = rKnee;
 
   if (bestKnee && targetLineY !== null) {
-    // Exponential smoothing ลด noise ของค่า Y เข่า
-    smoothKneeY = (smoothKneeY === null)
+    // Exponential smoothing ลด noise
+    smoothKneeY = smoothKneeY === null
       ? bestKnee.y
       : smoothKneeY * (1 - SMOOTH_ALPHA) + bestKnee.y * SMOOTH_ALPHA;
 
     const isAbove = smoothKneeY <= (targetLineY - THRESHOLD_UP);
     const isReset = smoothKneeY >= (targetLineY + THRESHOLD_DOWN);
 
-    // วาด marker ที่ตำแหน่งจริง แต่ใช้ค่า smooth ตัดสิน
     drawKneeMarker(bestKnee.x, bestKnee.y, isAbove);
-    // แสดงเส้น smooth ให้เห็นว่าระบบใช้ค่าไหน
-    drawKneeMarker(bestKnee.x, Math.round(smoothKneeY), isAbove, true);
 
-    // ตรรกะ Schmitt Trigger + Falling Edge Count
+    // ── Schmitt Trigger + Falling Edge Count ────────────────
     if (isRunning) {
       const now = performance.now();
-
-      // ขาขึ้น: เข่าถึงระดับ → ตั้ง flag รอ
-      if (isAbove && !isKneeUp) {
-        isKneeUp = true;
-      }
-      // Falling Edge: เข่าลงต่ำพอ + เคยขึ้นแล้ว + cooldown ผ่าน → นับ
-      if (isKneeUp && isReset && (now - lastCountTimestamp > COOLDOWN_MS)) {
-        isKneeUp = false;
+      if (isAbove && !isKneeUp) isKneeUp = true;
+      if (isKneeUp && isReset && (now - lastCountTimestamp) > COOLDOWN_MS) {
+        isKneeUp           = false;
         lastCountTimestamp = now;
         triggerCount();
       }
@@ -357,21 +368,15 @@ function drawTargetLine(y) {
   ctx.restore();
 }
 
-function drawKneeMarker(x, y, isPassed, isSmooth = false) {
+function drawKneeMarker(x, y, isPassed) {
   ctx.save();
   ctx.beginPath();
-  // จุดใหญ่ = ค่าจริง, จุดเล็ก = ค่า smooth (แสดงให้เห็นว่าระบบใช้ค่าไหน)
-  const r = isSmooth ? 6 : 14;
-  ctx.arc(x, y, r, 0, Math.PI * 2);
-  ctx.fillStyle = isSmooth
-    ? 'rgba(255,255,255,0.85)'
-    : (isPassed ? '#22c55e' : '#ef4444');
+  ctx.arc(x, y, 14, 0, Math.PI * 2);
+  ctx.fillStyle = isPassed ? '#22c55e' : '#ef4444';
   ctx.fill();
-  if (!isSmooth) {
-    ctx.lineWidth = 2.5;
-    ctx.strokeStyle = '#ffffff';
-    ctx.stroke();
-  }
+  ctx.lineWidth = 2.5;
+  ctx.strokeStyle = '#ffffff';
+  ctx.stroke();
   ctx.restore();
 }
 
@@ -389,14 +394,17 @@ function updateTimer() {
 
 function toggleRunning() {
   if (!isRunning) {
-    if (targetLineY === null) {
-      alert('กรุณายืนให้กล้องตรวจพบสะโพกก่อนเริ่ม');
+    if (!isLineLocked || targetLineY === null) {
+      guideText.textContent = 'รอตรวจพบสะโพกก่อน…';
+      guideText.style.color = 'var(--fail)';
       return;
     }
-    isLineLocked = true;
-    isRunning = true;
-    repCount = 0;
-    smoothKneeY = null;
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    isRunning      = true;
+    repCount       = 0;
+    smoothKneeY    = null;
+    isKneeUp       = false;
+    lastCountTimestamp = 0;
     countNum.textContent = '0';
     startTime = performance.now();
     btnAction.textContent = '⏹ สิ้นสุดการทดสอบ';
@@ -418,16 +426,22 @@ function finishTest() {
 
 function resetTest() {
   endScreen.classList.add('hidden');
-  repCount = 0;
-  countNum.textContent = '0';
+  // ล้าง state ทั้งหมด → ระบบจะ auto-lock ใหม่ทันทีที่เห็นสะโพก
+  repCount           = 0;
+  smoothKneeY        = null;
+  smoothHipY         = null;
+  hipStableCount     = 0;
+  isKneeUp           = false;
+  isLineLocked       = false;
+  targetLineY        = null;
+  lastCountTimestamp = 0;
+  countNum.textContent  = '0';
   timerDisp.textContent = '3:00';
   timerDisp.style.color = 'var(--warn)';
-  isKneeUp = false;
-  smoothKneeY = null;
-  isLineLocked = false;
-  btnAction.textContent = '📌 ล็อกระดับเอว & เริ่มทดสอบ';
-  guideText.textContent = 'ยืนให้เห็นช่วงเอวเพื่อจับระดับใหม่';
-  guideText.style.color = 'var(--text)';
+  btnAction.textContent = '▶ เริ่มทดสอบ';
+  btnAction.classList.remove('running');
+  guideText.textContent = 'ยืนให้กล้องเห็นช่วงเอว/สะโพก';
+  guideText.style.color = 'var(--muted)';
 }
 
 // ── เริ่มต้นระบบ ──────────────────────────────────────────
