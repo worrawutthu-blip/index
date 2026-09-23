@@ -17,20 +17,17 @@
     overflow: hidden; user-select: none; display: flex; flex-direction: column;
   }
 
-  /* ส่วนแสดงผลกล้อง */
+  /* ส่วนกล้องแบบเต็มจอ */
   #viewport {
-    position: relative; flex: 1; background: #000;
-    display: flex; align-items: center; justify-content: center; overflow: hidden;
+    position: relative; flex: 1; background: #000; overflow: hidden;
   }
-  #video {
-    position: absolute; width: 100%; height: 100%; object-fit: contain;
-  }
-  #canvas {
-    position: absolute; width: 100%; height: 100%; object-fit: contain; z-index: 5;
+  #video, #canvas {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: cover;
   }
   .mirrored { transform: scaleX(-1); }
 
-  /* แถบควบคุมด้านบน */
+  /* แถบด้านบน */
   #topBar {
     position: absolute; top: 0; left: 0; right: 0;
     padding: 10px 16px; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(6px);
@@ -42,9 +39,9 @@
     padding: 6px 12px; border-radius: 8px; font-size: 0.8rem; font-weight: 600; cursor: pointer;
   }
 
-  /* ตัวเลขนับจำนวนครั้ง */
+  /* ตัวเลขนับคะแนน */
   #countBox {
-    position: absolute; top: 26%; left: 50%; transform: translate(-50%, -50%);
+    position: absolute; top: 24%; left: 50%; transform: translate(-50%, -50%);
     text-align: center; pointer-events: none; z-index: 10;
   }
   #countNum {
@@ -63,27 +60,28 @@
   /* แผงควบคุมด้านล่าง */
   #panel {
     background: var(--surface); border-top: 1px solid var(--border);
-    padding: 12px 18px; display: flex; flex-direction: column; gap: 10px; z-index: 30;
+    padding: 10px 16px; display: flex; flex-direction: column; gap: 8px; z-index: 30;
   }
   .adjust-row {
-    display: flex; align-items: center; justify-content: space-between; gap: 10px;
-    font-size: 0.85rem; color: var(--muted);
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    font-size: 0.82rem; color: var(--muted);
   }
-  .adjust-btns { display: flex; gap: 8px; }
+  .adjust-btns { display: flex; align-items: center; gap: 6px; }
   .btn-adj {
     background: var(--bg); border: 1px solid var(--border); color: var(--text);
-    padding: 6px 14px; border-radius: 6px; font-size: 0.9rem; font-weight: 700; cursor: pointer;
+    padding: 5px 12px; border-radius: 6px; font-size: 0.85rem; font-weight: 700; cursor: pointer;
   }
   .btn-adj:active { background: var(--border); }
+  .val-disp { min-width: 44px; text-align: center; font-weight: 700; color: var(--text); }
 
   .btn-main {
-    width: 100%; padding: 14px; font-size: 1.15rem; font-weight: 800;
+    width: 100%; padding: 13px; font-size: 1.1rem; font-weight: 800;
     border: none; border-radius: 10px; cursor: pointer; background: var(--accent); color: #041325;
   }
   .btn-main:active { transform: scale(0.98); }
   .btn-main.running { background: var(--fail); color: #fff; }
 
-  /* หน้าจอโหลดและจบการทดสอบ */
+  /* หน้าจอผลลัพธ์ */
   .overlay-screen {
     position: absolute; inset: 0; background: rgba(15, 23, 42, 0.95);
     display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -121,7 +119,7 @@
       <button class="btn-sm" onclick="switchCamera()">🔄 สลับกล้อง</button>
     </div>
 
-    <div id="guideText">ลากเส้นส้ม หรือกดปุ่ม ▲▼ เพื่อตั้งระดับเอว</div>
+    <div id="guideText">ลากเส้นส้ม หรือใช้ปุ่มด้านล่างปรับระดับ</div>
 
     <div id="countBox">
       <div id="countNum">0</div>
@@ -130,13 +128,25 @@
   </div>
 
   <div id="panel">
+    <!-- แถวที่ 1: ปรับระดับเอว (เส้นส้ม) -->
     <div class="adjust-row">
-      <span>ปรับเส้นระดับเอว:</span>
+      <span>1. ระดับเอว (เส้นส้ม):</span>
       <div class="adjust-btns">
-        <button class="btn-adj" onclick="microAdjust(-0.015)">▲ ขึ้น</button>
-        <button class="btn-adj" onclick="microAdjust(0.015)">▼ ลง</button>
+        <button class="btn-adj" onclick="microAdjustWaist(-0.015)">▲ ขึ้น</button>
+        <button class="btn-adj" onclick="microAdjustWaist(0.015)">▼ ลง</button>
       </div>
     </div>
+
+    <!-- แถวที่ 2: ปรับระยะห่าง (เส้นฟ้า) -->
+    <div class="adjust-row">
+      <span>2. ช่วงปล่อยขา (เส้นฟ้า):</span>
+      <div class="adjust-btns">
+        <button class="btn-adj" onclick="adjustGap(-0.02)">- แคบลง</button>
+        <span class="val-disp" id="gapLabel">10%</span>
+        <button class="btn-adj" onclick="adjustGap(0.02)">+ กว้างขึ้น</button>
+      </div>
+    </div>
+
     <button id="btnAction" class="btn-main" onclick="toggleRunning()">▶ เริ่มการทดสอบ</button>
   </div>
 
@@ -145,6 +155,7 @@
 <script>
 const TOTAL_SEC = 180;
 const MIN_CONF = 0.15;
+const COOLDOWN_MS = 280; 
 
 let detector = null;
 let isRunning = false;
@@ -152,12 +163,14 @@ let startTime = 0;
 let repCount = 0;
 let currentCam = 'user';
 
-// ตำแหน่งเส้นเป้าหมายเป็นอัตราส่วนความสูงหน้าจอ (0.0 = บนสุด, 1.0 = ล่างสุด)
-// ค่าเริ่มต้น 0.52 (ประมาณกึ่งกลางจอ)
+// ตำแหน่งเส้นส้ม (0.15 ถึง 0.80 ของหน้าจอ)
 let targetRatio = 0.52; 
-const RESET_OFFSET_RATIO = 0.08; // เส้นปล่อยขาจะอยู่ต่ำกว่าเส้นเป้าหมาย 8% ของความสูงจอ
+
+// ระยะห่างของเส้นฟ้า (เริ่มต้นที่ 10% ของความสูงจอ ปรับได้ระหว่าง 4% ถึง 25%)
+let resetGapRatio = 0.10; 
 
 let stepState = 'WAITING_PEAK';
+let lastCountTime = 0;
 
 const video = document.getElementById('video');
 const canvas = document.getElementById('canvas');
@@ -171,6 +184,7 @@ const timerDisp = document.getElementById('timer');
 const countNum = document.getElementById('countNum');
 const guideText = document.getElementById('guideText');
 const flash = document.getElementById('flash');
+const gapLabel = document.getElementById('gapLabel');
 
 let audioCtx = null;
 function playBeep() {
@@ -219,20 +233,15 @@ async function switchCamera() {
   await initCamera();
 }
 
-// ── ระบบใช้นิ้วลากปรับระดับบนหน้าจอ ──────────────────────────
+// ── ระบบปรับระดับเส้น ──────────────────────────────────────────
 function setRatioFromClientY(clientY) {
   const rect = canvas.getBoundingClientRect();
-  const clampedY = Math.max(rect.top + 40, Math.min(clientY, rect.bottom - 80));
+  const clampedY = Math.max(rect.top + rect.height * 0.15, Math.min(clientY, rect.top + rect.height * 0.75));
   targetRatio = (clampedY - rect.top) / rect.height;
 }
 
-canvas.addEventListener('touchstart', (e) => {
-  setRatioFromClientY(e.touches[0].clientY);
-}, { passive: false });
-
-canvas.addEventListener('touchmove', (e) => {
-  setRatioFromClientY(e.touches[0].clientY);
-}, { passive: false });
+canvas.addEventListener('touchstart', (e) => setRatioFromClientY(e.touches[0].clientY), { passive: false });
+canvas.addEventListener('touchmove', (e) => setRatioFromClientY(e.touches[0].clientY), { passive: false });
 
 canvas.addEventListener('mousedown', (e) => {
   setRatioFromClientY(e.clientY);
@@ -245,11 +254,16 @@ canvas.addEventListener('mousedown', (e) => {
   window.addEventListener('mouseup', onUp);
 });
 
-function microAdjust(delta) {
-  targetRatio = Math.max(0.15, Math.min(0.85, targetRatio + delta));
+function microAdjustWaist(delta) {
+  targetRatio = Math.max(0.15, Math.min(0.75, targetRatio + delta));
 }
 
-// ── Detection Loop (ตรวจจับเฉพาะหัวเข่า) ────────────────────
+function adjustGap(delta) {
+  resetGapRatio = Math.max(0.04, Math.min(0.25, resetGapRatio + delta));
+  gapLabel.textContent = `${Math.round(resetGapRatio * 100)}%`;
+}
+
+// ── ลูปประมวลผล ──────────────────────────────────────────────
 async function detectLoop() {
   let poses = [];
   if (detector) {
@@ -259,9 +273,8 @@ async function detectLoop() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   const targetY = canvas.height * targetRatio;
-  const resetY  = canvas.height * (targetRatio + RESET_OFFSET_RATIO);
+  const resetY  = canvas.height * (targetRatio + resetGapRatio);
 
-  // วาดเส้นไกด์เป้าหมายและเส้นปล่อยขา
   drawDualLines(targetY, resetY);
 
   if (poses.length > 0 && poses[0].score > 0.12) {
@@ -272,7 +285,6 @@ async function detectLoop() {
     const lOK = lKnee && lKnee.score > MIN_CONF;
     const rOK = rKnee && rKnee.score > MIN_CONF;
 
-    // หาเข่าข้างที่ยกสูงที่สุดในเฟรม (Y ต่ำที่สุด)
     let bestKnee = null;
     if (lOK && rOK) bestKnee = (lKnee.y < rKnee.y) ? lKnee : rKnee;
     else if (lOK) bestKnee = lKnee;
@@ -284,11 +296,13 @@ async function detectLoop() {
 
       drawKneeMarker(bestKnee.x, bestKnee.y, isAboveTarget);
 
-      // State Machine การนับรอบ
       if (isRunning) {
+        const now = performance.now();
+
         if (stepState === 'WAITING_PEAK') {
-          if (isAboveTarget) {
+          if (isAboveTarget && (now - lastCountTime > COOLDOWN_MS)) {
             repCount++;
+            lastCountTime = now;
             countNum.textContent = repCount;
             triggerCountFeedback();
             stepState = 'WAITING_DROP';
@@ -319,7 +333,7 @@ function triggerCountFeedback() {
 
 function drawDualLines(targetY, resetY) {
   ctx.save();
-  // 1. เส้นเป้าหมาย (ส้ม)
+  // 1. เส้นส้ม (เป้าหมาย)
   ctx.strokeStyle = '#f59e0b';
   ctx.lineWidth = 4;
   ctx.beginPath();
@@ -328,10 +342,10 @@ function drawDualLines(targetY, resetY) {
   ctx.stroke();
 
   ctx.fillStyle = '#f59e0b';
-  ctx.font = 'bold 15px sans-serif';
-  ctx.fillText('◀ เส้นระดับเอว (ลากปรับระดับได้)', 12, targetY - 8);
+  ctx.font = 'bold 14px sans-serif';
+  ctx.fillText('◀ เส้นเป้าหมายเอว (เส้นส้ม)', 14, targetY - 8);
 
-  // 2. เส้นปล่อยขากลับ (ฟ้า)
+  // 2. เส้นฟ้า (ปล่อยขา)
   ctx.strokeStyle = '#38bdf8';
   ctx.lineWidth = 2.5;
   ctx.setLineDash([6, 6]);
@@ -342,7 +356,7 @@ function drawDualLines(targetY, resetY) {
 
   ctx.fillStyle = '#38bdf8';
   ctx.font = '13px sans-serif';
-  ctx.fillText('◀ เส้นปล่อยขากลับลงพื้น', 12, resetY + 18);
+  ctx.fillText('◀ เส้นปล่อยขากลับ (เส้นฟ้า)', 14, resetY + 18);
 
   ctx.restore();
 }
@@ -376,6 +390,7 @@ function toggleRunning() {
     repCount = 0;
     countNum.textContent = '0';
     startTime = performance.now();
+    lastCountTime = 0;
     stepState = 'WAITING_PEAK';
     btnAction.textContent = '⏹ สิ้นสุดการทดสอบ';
     btnAction.classList.add('running');
@@ -401,8 +416,9 @@ function resetTest() {
   timerDisp.textContent = '3:00';
   timerDisp.style.color = 'var(--warn)';
   stepState = 'WAITING_PEAK';
+  lastCountTime = 0;
   btnAction.textContent = '▶ เริ่มการทดสอบ';
-  guideText.textContent = 'ลากเส้นส้ม หรือกดปุ่ม ▲▼ เพื่อตั้งระดับเอว';
+  guideText.textContent = 'ลากเส้นส้ม หรือใช้ปุ่มด้านล่างปรับระดับ';
   guideText.style.color = 'var(--text)';
 }
 
